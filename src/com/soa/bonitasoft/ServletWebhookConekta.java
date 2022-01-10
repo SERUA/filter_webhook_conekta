@@ -14,13 +14,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
 
-import javax.servlet.Filter;
-import javax.servlet.FilterChain;
-import javax.servlet.FilterConfig;
+import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
-import javax.servlet.ServletRequest;
-import javax.servlet.ServletResponse;
+import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
 import org.bonitasoft.engine.api.APIClient;
 import org.bonitasoft.engine.api.ProcessAPI;
@@ -29,22 +27,34 @@ import org.bonitasoft.engine.session.APISession;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 
-public class FilterWebhookConekta implements Filter {
 
-    public Logger logger = Logger.getLogger(FilterWebhookConekta.class.getName());
+/**
+ * Servlet WebhookConekta
+ * 
+ * This servlet does not check any access. All security access must be done before this Servlet
+ *
+ */
+public class ServletWebhookConekta extends HttpServlet{ 
+    /**
+     * 
+     */
+    private static final long serialVersionUID = 6980902947325600709L;
 
-    FilterConfig filterConfig = null;
+
+    public Logger logger = Logger.getLogger(ServletWebhookConekta.class.getName());
     String allowSt = null;
+    
        
-    public void init(final FilterConfig filterConfig) throws ServletException {
-        allowSt = filterConfig.getInitParameter("allow");
-        this.filterConfig = filterConfig;
+    @Override
+    public void init(ServletConfig servletConfig) throws ServletException {
+    	allowSt = servletConfig.getInitParameter("allow");
     }
 
     /**
      * Each URL come
      */
-    public void doFilter(final ServletRequest servletRequest, final ServletResponse servletResponse, final FilterChain chain) throws IOException, ServletException {
+    @Override
+    public void doPost(HttpServletRequest httpRequest, HttpServletResponse resp) throws ServletException,  IOException {
         Connection CON = null;
         ResultSet RS = null;
         PreparedStatement PSTM = null;
@@ -66,7 +76,7 @@ public class FilterWebhookConekta implements Filter {
         JSONObject objectJson = new JSONObject();
         JSONObject customerInfoJson = new JSONObject();
         
-        final HttpServletRequest httpRequest = (HttpServletRequest) servletRequest;
+
         BufferedReader reader = null;
         
         APISession session = null;
@@ -76,13 +86,13 @@ public class FilterWebhookConekta implements Filter {
         ProcessAPI processAPI = null;
         Map<String, Serializable> inputs = null;
         
-        List<HumanTaskInstance> lstHumanTaskInstances = new ArrayList<HumanTaskInstance>();
+        List<HumanTaskInstance> lstHumanTaskInstances = new ArrayList<>();
         
         try {
         	/*======================================================================*/
             /*VALIDAR IP DE LA SOLICITUD*/
             /*======================================================================*/
-            boolean isAllowed = isAllowed(httpRequest.getRemoteAddr());
+            Boolean isAllowed = isAllowed(httpRequest.getRemoteAddr());
             if (!isAllowed){
                 throw new ServletException("Not allowed");
             }
@@ -97,7 +107,7 @@ public class FilterWebhookConekta implements Filter {
             CON = new DBConnect().getConnection();
             
             if(tipoPago != null && tipoPago.equals("order.paid")) {
-            	
+                
                 dataJson = (JSONObject) objResponseConekta.get("data");
 
                 objectJson = (JSONObject) dataJson.get("object");
@@ -121,7 +131,7 @@ public class FilterWebhookConekta implements Filter {
                 /*======================================================================*/
                 if(caseId != null) {
                     
-                	PSTM.close();
+                    PSTM.close();
                     PSTM = null;
                     RS.close();
                     RS = null;
@@ -157,12 +167,12 @@ public class FilterWebhookConekta implements Filter {
 
             }
             else {
-            	
+                
                 if(tipoPago != null) {
-                	
+                    
                     if( !tipoPago.equals("order.created") && !tipoPago.equals("order.pending_payment") && !tipoPago.equals("webhook_ping") ) {
-                    	
-                    	
+                        
+                        
                         dataJson = (JSONObject) objResponseConekta.get("data");
     
                         objectJson = (JSONObject) dataJson.get("object");
@@ -221,18 +231,20 @@ public class FilterWebhookConekta implements Filter {
                     }
                 }
             }
+            resp.getWriter().write("OK");
         } catch (Exception e) {
             StringWriter sw = new StringWriter();
             e.printStackTrace(new PrintWriter(sw));
             String exceptionDetails = sw.toString();
-            logger.severe("FilterWebhookConekta: exception "+e.getMessage()+" at "+exceptionDetails);
-            throw new ServletException("FilterWebhookConekta: ServletException "+e.getMessage()+" at "+exceptionDetails);
+            logger.severe("ServletWebhookConekta: exception "+e.getMessage()+" at "+exceptionDetails);
+            throw new ServletException("ServletWebhookConekta: ServletException "+e.getMessage()+" at "+exceptionDetails);
         } finally {
             new DBConnect().closeObj(CON, RS, PSTM);
         }
         return;
     }
 
+    @Override
     public void destroy() {
 
     }
@@ -249,4 +261,3 @@ public class FilterWebhookConekta implements Filter {
     }
 
 }
-
