@@ -42,12 +42,11 @@ public class ServletWebhookConekta extends HttpServlet{
 
 
     public Logger logger = Logger.getLogger(ServletWebhookConekta.class.getName());
-    String allowSt = null;
+
     
        
     @Override
     public void init(ServletConfig servletConfig) throws ServletException {
-    	allowSt = servletConfig.getInitParameter("allow");
     }
 
     /**
@@ -89,13 +88,9 @@ public class ServletWebhookConekta extends HttpServlet{
         List<HumanTaskInstance> lstHumanTaskInstances = new ArrayList<>();
         
         try {
-        	/*======================================================================*/
+            /*======================================================================*/
             /*VALIDAR IP DE LA SOLICITUD*/
             /*======================================================================*/
-            Boolean isAllowed = isAllowed(httpRequest.getRemoteAddr());
-            if (!isAllowed){
-                throw new ServletException("Not allowed");
-            }
             
             reader = httpRequest.getReader();
             while ((line = reader.readLine()) != null) {
@@ -236,8 +231,8 @@ public class ServletWebhookConekta extends HttpServlet{
             StringWriter sw = new StringWriter();
             e.printStackTrace(new PrintWriter(sw));
             String exceptionDetails = sw.toString();
-            logger.severe("ServletWebhookConekta: exception "+e.getMessage()+" at "+exceptionDetails);
-            throw new ServletException("ServletWebhookConekta: ServletException "+e.getMessage()+" at "+exceptionDetails);
+            logger.severe("FilterWebhookConekta: exception "+e.getMessage()+" at "+exceptionDetails);
+            throw new ServletException("FilterWebhookConekta: ServletException "+e.getMessage()+" at "+exceptionDetails);
         } finally {
             new DBConnect().closeObj(CON, RS, PSTM);
         }
@@ -247,17 +242,6 @@ public class ServletWebhookConekta extends HttpServlet{
     @Override
     public void destroy() {
 
-    }
-    
-    public boolean isAllowed(String property) {
-        // Check the allow patterns, if any
-        if (allowSt != null) {
-            if(allowSt.equals(property)) {
-                return true;
-            }
-        }
-        
-        return false;
     }
 
 }
