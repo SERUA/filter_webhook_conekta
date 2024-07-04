@@ -27,7 +27,6 @@ import org.bonitasoft.engine.session.APISession;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 
-
 /**
  * Servlet WebhookConekta
  * 
@@ -40,11 +39,8 @@ public class ServletWebhookConekta extends HttpServlet{
      */
     private static final long serialVersionUID = 6980902947325600709L;
 
-
     public Logger logger = Logger.getLogger(ServletWebhookConekta.class.getName());
 
-    
-       
     @Override
     public void init(ServletConfig servletConfig) throws ServletException {
     }
@@ -57,10 +53,8 @@ public class ServletWebhookConekta extends HttpServlet{
         Connection CON = null;
         ResultSet RS = null;
         PreparedStatement PSTM = null;
-        
         String USERNAME = "";
         String PASSWORD = "";
-        
         StringBuilder jb = new StringBuilder();
         String line = null;
         String tipoPago = null;
@@ -68,23 +62,16 @@ public class ServletWebhookConekta extends HttpServlet{
         String id = null;
         String caseId = null;
         String consulta = null;
-        
         JSONParser parser = new JSONParser();
         JSONObject objResponseConekta = new JSONObject();
         JSONObject dataJson = new JSONObject();
         JSONObject objectJson = new JSONObject();
         JSONObject customerInfoJson = new JSONObject();
-        
-
         BufferedReader reader = null;
-        
         APISession session = null;
-
         Boolean isPagoValidadoCont = false;
-        
         ProcessAPI processAPI = null;
         Map<String, Serializable> inputs = null;
-        
         List<HumanTaskInstance> lstHumanTaskInstances = new ArrayList<>();
         
         try {
@@ -96,17 +83,15 @@ public class ServletWebhookConekta extends HttpServlet{
             while ((line = reader.readLine()) != null) {
                 jb.append(line);
             }
+
             objResponseConekta = (JSONObject) parser.parse(jb.toString());
             tipoPago = (String) objResponseConekta.get("type");
             
             CON = new DBConnect().getConnection();
             
             if(tipoPago != null && tipoPago.equals("order.paid")) {
-                
                 dataJson = (JSONObject) objResponseConekta.get("data");
-
                 objectJson = (JSONObject) dataJson.get("object");
-
                 customerInfoJson = (JSONObject) objectJson.get("customer_info");
                 email = (String) customerInfoJson.get("email");
 
@@ -117,6 +102,7 @@ public class ServletWebhookConekta extends HttpServlet{
                 PSTM = CON.prepareStatement(consulta);
                 PSTM.setString(1, email);
                 RS = PSTM.executeQuery();
+
                 if(RS.next()) {
                     caseId=RS.getString("caseid");
                 }
@@ -125,15 +111,14 @@ public class ServletWebhookConekta extends HttpServlet{
                 /*CONEXION A SERVIDOR BONITA*/
                 /*======================================================================*/
                 if(caseId != null) {
-                    
                     PSTM.close();
                     PSTM = null;
                     RS.close();
                     RS = null;
-                    
                     consulta="SELECT persistenceid, persistenceversion, clave, valor, descripcion FROM CatConfiguracion WHERE clave IN ('filterUsername', 'filterPassword')";                   
                     PSTM = CON.prepareStatement(consulta);
                     RS = PSTM.executeQuery();
+
                     while(RS.next()) {
                         if(RS.getString("clave").equals("filterUsername")){
                             USERNAME = RS.getString("valor");
@@ -157,21 +142,43 @@ public class ServletWebhookConekta extends HttpServlet{
                         inputs.put("isCambioMetodoPagoCont",  false);
                         processAPI.assignUserTask(lstHumanTaskInstances.get(0).getId(), session.getUserId());
                         processAPI.executeUserTask(lstHumanTaskInstances.get(0).getId(), inputs);
-                    }
+                    } else {
+						/*======================================================================*/
+						/*En caso de no encontrar una tarea buscamos por orden en apoyoeducativo */
+						/*CONEXION A BASE DE DATOS */
+						/*======================================================================*/
+						PSTM.close();
+						PSTM = null;
+						RS.close();
+						RS = null;
+						consulta = "SELECT correoelectronico, sdae.caseid  FROM solicituddeadmision  AS admi INNER JOIN SolicitudApoyoEducativo AS sdae ON sdae.caseIdAdmisiones = admi.caseid WHERE ordenpagoconekta = ?";
+						PSTM = CON.prepareStatement(consulta);
+						String ordenPago = (String) objectJson.get("id");
+						PSTM.setString(1, ordenPago);
+						RS = PSTM.executeQuery();
+	
+						if(RS.next()) {
+							caseId=RS.getString("caseid");
+						}
+	
+						if(caseId != null) {
+							lstHumanTaskInstances = processAPI.getHumanTaskInstances(Long.valueOf(caseId), "Esperar pago de estudio socio-económico", 0, 99);
+							if(lstHumanTaskInstances != null && lstHumanTaskInstances.size()>0) {
+								isPagoValidadoCont = true;
+								inputs = new HashMap<String, Serializable>();
+								inputs.put("isPagoValidadoInput",  true);
+                                inputs.put("isPagoRechazadoInput",  false);
+								processAPI.assignUserTask(lstHumanTaskInstances.get(0).getId(), session.getUserId());
+								processAPI.executeUserTask(lstHumanTaskInstances.get(0).getId(), inputs);
+							}
+						}
+					}
                 }
-
-            }
-            else {
-                
+            } else {
                 if(tipoPago != null) {
-                    
                     if( !tipoPago.equals("order.created") && !tipoPago.equals("order.pending_payment") && !tipoPago.equals("webhook_ping") ) {
-                        
-                        
                         dataJson = (JSONObject) objResponseConekta.get("data");
-    
                         objectJson = (JSONObject) dataJson.get("object");
-    
                         id = (String) objectJson.get("id");
                         
                         /*======================================================================*/
@@ -181,6 +188,7 @@ public class ServletWebhookConekta extends HttpServlet{
                         PSTM = CON.prepareStatement(consulta);
                         PSTM.setString(1, id);
                         RS = PSTM.executeQuery();
+
                         if(RS.next()) {
                             caseId=RS.getString("caseid");
                         }
@@ -189,15 +197,14 @@ public class ServletWebhookConekta extends HttpServlet{
                         /*CONEXION A SERVIDOR BONITA*/
                         /*======================================================================*/
                         if(caseId != null) {
-                            
                             PSTM.close();
                             PSTM = null;
                             RS.close();
                             RS = null;
-                            
-                            consulta="SELECT persistenceid, persistenceversion, clave, valor, descripcion FROM CatConfiguracion WHERE clave IN ('filterUsername', 'filterPassword')";                   
+                            consulta = "SELECT persistenceid, persistenceversion, clave, valor, descripcion FROM CatConfiguracion WHERE clave IN ('filterUsername', 'filterPassword')";                   
                             PSTM = CON.prepareStatement(consulta);
                             RS = PSTM.executeQuery();
+
                             while(RS.next()) {
                                 if(RS.getString("clave").equals("filterUsername")){
                                     USERNAME = RS.getString("valor");
@@ -212,20 +219,53 @@ public class ServletWebhookConekta extends HttpServlet{
                             apiClient.login(USERNAME, PASSWORD);
                             processAPI = apiClient.getProcessAPI();
                             session = apiClient.getSession();
-                            
                             lstHumanTaskInstances = processAPI.getHumanTaskInstances(Long.valueOf(caseId), "Esperar pago", 0, 99);
+                            
                             if(lstHumanTaskInstances != null && lstHumanTaskInstances.size()>0) {
                                 inputs = new HashMap<String, Serializable>();
                                 inputs.put("isPagoValidadoCont",  isPagoValidadoCont);
                                 inputs.put("isCambioMetodoPagoCont",  false);
                                 processAPI.assignUserTask(lstHumanTaskInstances.get(0).getId(), session.getUserId());
                                 processAPI.executeUserTask(lstHumanTaskInstances.get(0).getId(), inputs);
-                            }
+                            } else {
+                                /*======================================================================*/
+                                /*En caso de no encontrar una tarea buscamos por orden en apoyoeducativo */
+                                /*CONEXION A BASE DE DATOS */
+                                /*======================================================================*/
+                                
+								PSTM.close();
+								PSTM = null;
+								RS.close();
+								RS = null;
+								
+								consulta = "SELECT correoelectronico, sdae.caseid  FROM solicituddeadmision  AS admi INNER JOIN SolicitudApoyoEducativo AS sdae ON sdae.caseIdAdmisiones = admi.caseid WHERE ordenpagoconekta = ?";
+								
+								PSTM = CON.prepareStatement(consulta);
+								String ordenPago = (String) objectJson.get("id");
+								PSTM.setString(1, ordenPago);
+								RS = PSTM.executeQuery();
+			
+								if(RS.next()) {
+									caseId = RS.getString("caseid");
+								}
+			
+								if(caseId != null) {
+									lstHumanTaskInstances = processAPI.getHumanTaskInstances(Long.valueOf(caseId), "Esperar pago de estudio socio-económico", 0, 99);
+									if(lstHumanTaskInstances != null && lstHumanTaskInstances.size( ) >0) {
+										isPagoValidadoCont = true;
+										inputs = new HashMap<String, Serializable>();
+										inputs.put("isPagoValidadoInput",  true);
+		                                inputs.put("isPagoRechazadoInput",  false);
+										processAPI.assignUserTask(lstHumanTaskInstances.get(0).getId(), session.getUserId());
+										processAPI.executeUserTask(lstHumanTaskInstances.get(0).getId(), inputs);
+									}
+								}
+							}
                         }
-                        
                     }
                 }
             }
+
             resp.getWriter().write("OK");
         } catch (Exception e) {
             StringWriter sw = new StringWriter();
@@ -236,6 +276,7 @@ public class ServletWebhookConekta extends HttpServlet{
         } finally {
             new DBConnect().closeObj(CON, RS, PSTM);
         }
+
         return;
     }
 
@@ -243,5 +284,4 @@ public class ServletWebhookConekta extends HttpServlet{
     public void destroy() {
 
     }
-
 }
